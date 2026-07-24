@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Knowledge Assistant</title>
+
+    <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+
+    <div class="container">
+
+        <h1>📚 RAG Knowledge Assistant</h1>
+
+        <div class="card">
+
+            <h2>Upload PDF</h2>
+
+            <input
+                type="file"
+                id="pdfFile"
+                accept=".pdf"
+            >
+
+            <button onclick="uploadFile()">
+                Upload PDF
+            </button>
+
+            <div id="uploadResult"></div>
+
+        </div>
+
+        <div class="card">
+
+            <h2>Ask Question</h2>
+
+            <textarea
+                id="question"
+                placeholder="Ask a question about the uploaded documents..."
+            ></textarea>
+
+            <button onclick="askQuestion()">
+                Ask
+            </button>
+
+        </div>
+
+        <div class="card">
+
+            <h2>Answer</h2>
+	    <div id="answer"></div>
+
+        </div>
+
+    </div>
+
+    <script src="/static/script.js"> </script>
+
+</body>
+</html>
