@@ -387,7 +387,9 @@ async function askQuestion() {
               // Add sources button to the message wrapper
               renderMetadata(msgContainer.parentElement, data.chunks);
             } else if (data.type === 'token') {
-              tokenQueue.push(data.content);
+              for (const char of data.content) {
+                tokenQueue.push(char);
+              }
               if (!isTyping) processQueue();
             } else if (data.type === 'error') {
               msgContainer.textContent += '\n\n[Error: ' + data.content + ']';

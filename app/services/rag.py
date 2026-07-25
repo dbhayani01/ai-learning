@@ -254,21 +254,23 @@ def answer_question_stream(question: str, user_id: int, session_id: str):
                     remainder = buffer.split("</thinking>")[-1].lstrip()
                     if remainder:
                         final_ai_answer += remainder
-                        yield f"data: {json.dumps({'type': 'token', 'content': remainder})}\n\n"
             else:
                 final_ai_answer += chunk.content
-                yield f"data: {json.dumps({'type': 'token', 'content': chunk.content})}\n\n"
                 
-    # Fallback: if the model completely ignored the <thinking> instructions, yield the buffer
+    import re
+    # If the model completely ignored the <thinking> instructions, fallback to raw buffer
     if not post_thinking and buffer:
-        # We can optionally strip out an opening <thinking> if it exists but wasn't closed
-        import re
         clean_buffer = re.sub(r'<thinking>.*', '', buffer, flags=re.DOTALL).strip()
-        if not clean_buffer:
-            clean_buffer = buffer # If it was entirely unclosed thinking, just dump it
-            
-        final_ai_answer = clean_buffer
-        yield f"data: {json.dumps({'type': 'token', 'content': clean_buffer})}\n\n"
+        final_ai_answer = clean_buffer if clean_buffer else buffer
+
+    # Regex to remove any sentence that mentions "CHUNK X" (case insensitive)
+    # Matches optional non-punctuation, the word CHUNK and a number, and optional non-punctuation until a period/newline.
+    final_ai_answer = re.sub(r'[^.!?\n]*\bCHUNK\s*\d+\b[^.!?\n]*[.!?]?', '', final_ai_answer, flags=re.IGNORECASE).strip()
+    
+    # We yield it in chunks of 50 chars so SSE doesn't hit weird size limits, though frontend handles it char-by-char now
+    chunk_size = 50
+    for i in range(0, len(final_ai_answer), chunk_size):
+        yield f"data: {json.dumps({'type': 'token', 'content': final_ai_answer[i:i+chunk_size]})}\n\n"
 
     # Save to history
     if final_ai_answer:
