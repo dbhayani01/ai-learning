@@ -1,61 +1,89 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAG Knowledge Assistant</title>
-
-    <link rel="stylesheet" href="static/style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RAG Knowledge Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css?v=2" />
 </head>
 <body>
+  <!-- Background orbs -->
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+  <div class="bg-orb orb-3"></div>
 
-    <div class="container">
-
-        <h1>📚 RAG Knowledge Assistant</h1>
-
-        <div class="card">
-
-            <h2>Upload PDF</h2>
-
-            <input
-                type="file"
-                id="pdfFile"
-                accept=".pdf"
-            >
-
-            <button onclick="uploadFile()">
-                Upload PDF
-            </button>
-
-            <div id="uploadResult"></div>
-
+  <div class="chat-layout">
+    <!-- Header -->
+    <header class="chat-header">
+      <div class="logo">
+        <span class="logo-icon">⚡</span>
+        <span class="logo-text">RAG<span class="logo-accent">AI</span></span>
+      </div>
+      <div style="display: flex; gap: 12px; align-items: center;">
+        <button class="btn-ghost" onclick="clearChat()" style="padding: 6px 12px; font-size: 0.8rem; border-radius: 6px;">Clear Chat</button>
+        <div id="status-dot" class="status-badge">
+          <span class="dot dot-green"></span> Ready
         </div>
+      </div>
+    </header>
 
-        <div class="card">
-
-            <h2>Ask Question</h2>
-
-            <textarea
-                id="question"
-                placeholder="Ask a question about the uploaded documents..."
-            ></textarea>
-
-            <button onclick="askQuestion()">
-                Ask
-            </button>
-
+    <!-- Chat History -->
+    <main class="chat-history" id="chat-history">
+      <!-- Welcome Message -->
+      <div class="chat-message ai-message">
+        <div class="message-content">
+          <p>Hello! I am your RAG Knowledge Assistant. Upload a document below and ask me anything about it.</p>
         </div>
+      </div>
+    </main>
 
-        <div class="card">
-
-            <h2>Answer</h2>
-	    <div id="answer"></div>
-
+    <!-- Upload Progress Toast -->
+    <div id="upload-toast" class="upload-toast hidden">
+      <div class="toast-content">
+        <span class="toast-icon">📄</span>
+        <div class="toast-text">
+          <div id="job-filename" class="toast-title">document.pdf</div>
+          <div id="job-meta" class="toast-sub">Processing...</div>
         </div>
-
+        <div class="toast-spinner" id="toast-spinner"></div>
+      </div>
+      <div class="toast-progress">
+        <div class="toast-progress-fill" id="progress-fill"></div>
+      </div>
     </div>
 
-    <script src="/static/script.js"> </script>
+    <!-- Input Area -->
+    <footer class="chat-input-area">
+      <div class="input-container">
+        <!-- Hidden File Input -->
+        <input type="file" id="pdfFile" accept=".pdf" hidden />
+        
+        <!-- Upload Button -->
+        <button class="btn-icon" id="btn-upload" title="Upload Document" onclick="document.getElementById('pdfFile').click()">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+        </button>
 
+        <!-- Textarea -->
+        <textarea 
+          id="question" 
+          class="chat-input" 
+          placeholder="Ask a question..." 
+          rows="1"
+          oninput="this.style.height = 'auto'; this.style.height = (this.scrollHeight < 200 ? this.scrollHeight : 200) + 'px'"
+          onkeydown="handleKey(event)"></textarea>
+
+        <!-- Send Button -->
+        <button class="btn-icon btn-send" id="btn-send" onclick="askQuestion()">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+        </button>
+      </div>
+      <div class="input-footer">AI can make mistakes. Always verify information.</div>
+    </footer>
+  </div>
+
+  <script src="/static/script.js"></script>
 </body>
 </html>

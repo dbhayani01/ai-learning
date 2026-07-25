@@ -1,2 +1,11 @@
 .env
-.env
+__pycache__/
+*.pyc
+
+# Do not upload user documents or the FAISS index to GitHub
+documents/
+faiss_index/
+
+# Logs and temp files
+pdf_out.txt
+*.log
