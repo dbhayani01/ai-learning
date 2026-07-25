@@ -31,8 +31,8 @@ RETRIEVAL_FETCH      = int(os.getenv("RETRIEVAL_FETCH", "30"))
 NEAR_DUP_THRESHOLD   = float(os.getenv("NEAR_DUP_THRESHOLD", "0.85"))
 
 # ── Memory guard ───────────────────────────────────────────────────────────────
-MIN_FREE_MB_QUERY  = int(os.getenv("MIN_FREE_MB_QUERY", "150"))
-MIN_FREE_MB_WORKER = int(os.getenv("MIN_FREE_MB_WORKER", "200"))
+MIN_FREE_MB_QUERY  = int(os.getenv("MIN_FREE_MB_QUERY", "50"))
+MIN_FREE_MB_WORKER = int(os.getenv("MIN_FREE_MB_WORKER", "100"))
 
 # ── Ensure directories exist ───────────────────────────────────────────────────
 os.makedirs(DOCUMENTS_DIR, exist_ok=True)
