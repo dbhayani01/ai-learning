@@ -105,7 +105,7 @@ RULES:
 2. BIFURCATE and strictly base your final answer ONLY on the single chunk that accurately addresses the question. Ignore conflicting or irrelevant chunks.
 3. If the answer is not in the chunks, say: "I could not find that information in the uploaded documents."
 4. Do NOT mix information from unrelated chunks or unrelated people/topics.
-5. CHAIN OF THOUGHT: You MUST start your response with <thinking>...</thinking> tags where you explicitly reason about which chunk contains the answer and why. Then write your final answer after the tags.
+5. CHAIN OF THOUGHT: You MUST start your response with <thinking> tags where you explicitly reason about which chunk contains the answer and why. End your reasoning with </thinking>. Then write your final answer after the tags.
 6. Do NOT mention the chunk number or the source filename in your final answer. The system handles that automatically."""
 
 _BIOGRAPHICAL_INSTRUCTION = """\
@@ -241,11 +241,10 @@ def answer_question_stream(question: str, user_id: int, session_id: str):
     yield f"data: {json.dumps({'type': 'metadata', 'question_type': q_type, 'chunks': chunks_list})}\n\n"
 
     # Stream LLM tokens (filter out the thinking block)
+    final_ai_answer = ""
     buffer = ""
     post_thinking = False
     
-    final_ai_answer = ""
-
     for chunk in llm.stream(messages):
         if chunk.content:
             if not post_thinking:
@@ -259,6 +258,17 @@ def answer_question_stream(question: str, user_id: int, session_id: str):
             else:
                 final_ai_answer += chunk.content
                 yield f"data: {json.dumps({'type': 'token', 'content': chunk.content})}\n\n"
+                
+    # Fallback: if the model completely ignored the <thinking> instructions, yield the buffer
+    if not post_thinking and buffer:
+        # We can optionally strip out an opening <thinking> if it exists but wasn't closed
+        import re
+        clean_buffer = re.sub(r'<thinking>.*', '', buffer, flags=re.DOTALL).strip()
+        if not clean_buffer:
+            clean_buffer = buffer # If it was entirely unclosed thinking, just dump it
+            
+        final_ai_answer = clean_buffer
+        yield f"data: {json.dumps({'type': 'token', 'content': clean_buffer})}\n\n"
 
     # Save to history
     if final_ai_answer:

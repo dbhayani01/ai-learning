@@ -351,6 +351,22 @@ async function askQuestion() {
     const decoder = new TextDecoder('utf-8');
     let buffer = '';
 
+    // Smooth typewriter queue
+    let tokenQueue = [];
+    let isTyping = false;
+    
+    function processQueue() {
+      if (tokenQueue.length === 0) {
+        isTyping = false;
+        return;
+      }
+      isTyping = true;
+      msgContainer.textContent += tokenQueue.shift();
+      scrollToBottom();
+      // Groq is fast, so we add a slight artificial delay per token for the typing effect
+      setTimeout(processQueue, 15);
+    }
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -371,8 +387,8 @@ async function askQuestion() {
               // Add sources button to the message wrapper
               renderMetadata(msgContainer.parentElement, data.chunks);
             } else if (data.type === 'token') {
-              msgContainer.textContent += data.content;
-              scrollToBottom();
+              tokenQueue.push(data.content);
+              if (!isTyping) processQueue();
             } else if (data.type === 'error') {
               msgContainer.textContent += '\n\n[Error: ' + data.content + ']';
             }
