@@ -1,11 +1,45 @@
+# Environments
 .env
-__pycache__/
-*.pyc
+.venv/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
-# Do not upload user documents or the FAISS index to GitHub
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Databases
+*.db
+*.sqlite3
+*.db.bak
+
+# Uploads and Vector Databases
 documents/
 faiss_index/
 
-# Logs and temp files
-pdf_out.txt
+# Logs and databases
 *.log
+pdf_out.txt
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/

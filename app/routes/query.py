@@ -11,6 +11,8 @@ from app.config import MIN_FREE_MB_QUERY
 from fastapi.responses import StreamingResponse
 from app.services.rag import answer_question_stream
 from app.services.queue_manager import get_job
+from fastapi import Depends
+from app.routes.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["query"])
@@ -18,11 +20,10 @@ router = APIRouter(tags=["query"])
 
 class QuestionRequest(BaseModel):
     question: str = Field(..., min_length=3, max_length=2000, description="Question to ask")
-    session_id: str = Field(..., description="Unique session ID for chat history")
-
+    session_id: str | None = Field(None, description="Optional chat session ID")
 
 @router.post("/ask", summary="Ask a question against ingested documents")
-def ask(request: QuestionRequest):
+def ask(request: QuestionRequest, user: dict = Depends(get_current_user)):
     """
     Run the RAG pipeline and return an answer with source attribution.
 
@@ -36,8 +37,16 @@ def ask(request: QuestionRequest):
         )
 
     try:
+        from app.services.history import create_chat_session
+        
+        # Auto-create session if None
+        session_id = request.session_id
+        if not session_id:
+            title = " ".join(request.question.split()[:4]) + "..."
+            session_id = create_chat_session(user["id"], title)
+
         return StreamingResponse(
-            answer_question_stream(request.question, request.session_id), 
+            answer_question_stream(request.question, user["id"], session_id), 
             media_type="text/event-stream"
         )
     except FileNotFoundError as exc:
@@ -60,16 +69,21 @@ def job_status(job_id: str):
     return job
 
 
-from app.services.history import get_history, clear_history
+from app.services.history import get_history, delete_chat_session, get_chat_sessions
 
-@router.get("/history/{session_id}", summary="Get chat history for a session")
-def get_chat_history(session_id: str):
-    """Retrieve chat history for the given session ID."""
+@router.get("/sessions", summary="Get chat sessions for current user")
+def get_sessions(user: dict = Depends(get_current_user)):
+    """Retrieve all chat sessions for the logged-in user."""
+    return {"sessions": get_chat_sessions(user["id"])}
+
+@router.get("/history", summary="Get chat history for a session")
+def get_chat_history(session_id: str, user: dict = Depends(get_current_user)):
+    """Retrieve chat history for a specific session."""
     history = get_history(session_id)
     return {"messages": history}
 
-@router.delete("/history/{session_id}", summary="Clear chat history")
-def delete_chat_history(session_id: str):
-    """Delete all chat history for the given session ID."""
-    clear_history(session_id)
+@router.delete("/history", summary="Delete a chat session")
+def delete_chat_history(session_id: str, user: dict = Depends(get_current_user)):
+    """Delete a specific chat session."""
+    delete_chat_session(session_id)
     return {"status": "cleared"}

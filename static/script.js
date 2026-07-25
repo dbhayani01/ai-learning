@@ -1,38 +1,190 @@
-/* ── Session Management ────────────────────────────────────────────────────── */
-function getSessionId() {
-  let sid = sessionStorage.getItem('chat_session_id');
-  if (!sid) {
-    sid = 'sess_' + Math.random().toString(36).substr(2, 9);
-    sessionStorage.setItem('chat_session_id', sid);
+/* ── Auth Management ───────────────────────────────────────────────────────── */
+let authToken = localStorage.getItem('chat_auth_token');
+let activeSessionId = null;
+let isSignupMode = false;
+
+function setAuthToken(token) {
+  authToken = token;
+  if (token) {
+    localStorage.setItem('chat_auth_token', token);
+  } else {
+    localStorage.removeItem('chat_auth_token');
   }
-  return sid;
 }
 
-const sessionId = getSessionId();
+function toggleAuthMode() {
+  isSignupMode = !isSignupMode;
+  document.getElementById('auth-title').textContent = isSignupMode ? 'Create Account' : 'Welcome Back';
+  document.getElementById('auth-subtitle').textContent = isSignupMode ? 'Sign up to save your chats.' : 'Log in to access your chat history.';
+  document.getElementById('btn-auth-submit').textContent = isSignupMode ? 'Sign Up' : 'Log In';
+  document.getElementById('auth-switch-text').textContent = isSignupMode ? 'Already have an account?' : "Don't have an account?";
+  document.getElementById('auth-switch-link').textContent = isSignupMode ? 'Log in' : 'Sign up';
+  document.getElementById('auth-error').classList.add('hidden');
+}
 
-/* ── Load History ────────────────────────────────────────────────────────── */
-async function loadHistory() {
+async function submitAuth() {
+  const user = document.getElementById('auth-username').value.trim();
+  const pass = document.getElementById('auth-password').value.trim();
+  const errEl = document.getElementById('auth-error');
+  
+  if (!user || !pass) {
+    errEl.textContent = "Please enter username and password.";
+    errEl.classList.remove('hidden');
+    return;
+  }
+  
+  const endpoint = isSignupMode ? '/signup' : '/login';
+  
   try {
-    const res = await fetch(`/history/${sessionId}`);
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user, password: pass })
+    });
+    
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.detail || "Authentication failed.";
+      errEl.classList.remove('hidden');
+      return;
+    }
+    
+    setAuthToken(data.token);
+    document.getElementById('auth-overlay').classList.add('hidden');
+    
+    // Update Header & Sidebar
+    document.getElementById('user-greeting').textContent = `Hi, ${data.username}`;
+    document.getElementById('user-greeting').style.display = 'inline';
+    document.getElementById('btn-logout').style.display = 'inline';
+    document.getElementById('sidebar').style.display = 'flex';
+    
+    startNewChat();
+    loadSessions();
+    
+  } catch (err) {
+    errEl.textContent = "Network error. Server may be down.";
+    errEl.classList.remove('hidden');
+  }
+}
+
+async function logout() {
+  if (authToken) {
+    await fetch('/logout', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    }).catch(()=>{});
+  }
+  setAuthToken(null);
+  activeSessionId = null;
+  document.getElementById('chat-history').innerHTML = `
+    <div class="chat-message ai-message">
+      <div class="message-content">
+        <p>Hello! I am your RAG Knowledge Assistant. Please upload a document to get started.</p>
+      </div>
+    </div>
+  `;
+  document.getElementById('user-greeting').style.display = 'none';
+  document.getElementById('btn-logout').style.display = 'none';
+  document.getElementById('sidebar').style.display = 'none';
+  document.getElementById('auth-overlay').classList.remove('hidden');
+}
+
+async function checkAuthOnLoad() {
+  if (!authToken) {
+    document.getElementById('auth-overlay').classList.remove('hidden');
+    return;
+  }
+  
+  try {
+    const res = await fetch('/me', {
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      document.getElementById('auth-overlay').classList.add('hidden');
+      document.getElementById('user-greeting').textContent = `Hi, ${data.username}`;
+      document.getElementById('user-greeting').style.display = 'inline';
+      document.getElementById('btn-logout').style.display = 'inline';
+      document.getElementById('sidebar').style.display = 'flex';
+      startNewChat();
+      loadSessions();
+    } else {
+      setAuthToken(null);
+      document.getElementById('auth-overlay').classList.remove('hidden');
+    }
+  } catch (err) {
+    console.error("Auth check failed:", err);
+  }
+}
+
+/* ── Sessions & History ──────────────────────────────────────────────────── */
+async function loadSessions() {
+  if (!authToken) return;
+  try {
+    const res = await fetch(`/sessions`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+    if (!res.ok) return;
+    const data = await res.json();
+    const list = document.getElementById('session-list');
+    list.innerHTML = '';
+    
+    data.sessions.forEach(session => {
+      const el = document.createElement('div');
+      el.className = `session-item ${session.id === activeSessionId ? 'active' : ''}`;
+      el.innerHTML = `
+        <span>${session.title}</span>
+        <button class="session-delete" onclick="deleteSession('${session.id}', event)">×</button>
+      `;
+      el.onclick = () => loadHistory(session.id);
+      list.appendChild(el);
+    });
+  } catch (e) {
+    console.error("Failed to load sessions", e);
+  }
+}
+
+function startNewChat() {
+  activeSessionId = null;
+  document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('chat-history').innerHTML = `
+    <div class="chat-message ai-message">
+      <div class="message-content">
+        <p>Hello! Ask me a question and a new chat session will begin.</p>
+      </div>
+    </div>
+  `;
+}
+
+async function loadHistory(sessionId) {
+  if (!authToken) return;
+  activeSessionId = sessionId;
+  
+  // Highlight active
+  loadSessions(); // Re-render to highlight active
+  
+  try {
+    const res = await fetch(`/history?session_id=${sessionId}`, {
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
     if (!res.ok) return;
     const data = await res.json();
     
+    const historyEl = document.getElementById('chat-history');
+    historyEl.innerHTML = '';
+    
     if (data.messages && data.messages.length > 0) {
-      // Clear the welcome message
-      const historyEl = document.getElementById('chat-history');
-      historyEl.innerHTML = '';
-      
-      // Render history
       data.messages.forEach(msg => {
-        addMessage(msg.content, msg.role);
+        addMessage(msg.content, msg.role, msg.metadata);
       });
+    } else {
+      startNewChat();
     }
   } catch (err) {
     console.error("Failed to load history:", err);
   }
 }
 
-document.addEventListener('DOMContentLoaded', loadHistory);
+document.addEventListener('DOMContentLoaded', checkAuthOnLoad);
 
 /* ── File Upload ──────────────────────────────────────────────────────────── */
 const fileInput = document.getElementById('pdfFile');
@@ -56,7 +208,11 @@ async function uploadFile() {
   showToast(file.name, 'Uploading...');
 
   try {
-    const res = await fetch('/upload', { method: 'POST', body: formData });
+    const res = await fetch('/upload', { 
+      method: 'POST', 
+      headers: { 'Authorization': `Bearer ${authToken}` },
+      body: formData 
+    });
     const data = await res.json();
 
     if (!res.ok) {
@@ -177,8 +333,11 @@ async function askQuestion() {
   try {
     const res  = await fetch('/ask', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: q, session_id: sessionId }),
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({ question: q, session_id: activeSessionId }),
     });
 
     if (!res.ok) {
@@ -204,7 +363,14 @@ async function askQuestion() {
         if (line.startsWith('data: ')) {
           try {
             const data = JSON.parse(line.substring(6));
-            if (data.type === 'token') {
+            if (data.type === 'session_id') {
+              const isNewSession = !activeSessionId;
+              activeSessionId = data.session_id;
+              if (isNewSession) loadSessions(); // Refresh list to show new chat
+            } else if (data.type === 'metadata') {
+              // Add sources button to the message wrapper
+              renderMetadata(msgContainer.parentElement, data.chunks);
+            } else if (data.type === 'token') {
               msgContainer.textContent += data.content;
               scrollToBottom();
             } else if (data.type === 'error') {
@@ -224,7 +390,7 @@ async function askQuestion() {
   }
 }
 
-function addMessage(text, sender) {
+function addMessage(text, sender, metadata = null) {
   const history = document.getElementById('chat-history');
   
   const wrap = document.createElement('div');
@@ -235,11 +401,52 @@ function addMessage(text, sender) {
   content.textContent = text;
   
   wrap.appendChild(content);
+  
+  // Attach metadata tags if provided
+  if (metadata && metadata.length > 0 && sender === 'ai') {
+    renderMetadata(wrap, metadata);
+  }
+  
   history.appendChild(wrap);
   
   scrollToBottom();
   
-  return content; // Return the content node so we can stream into it if it's an AI message
+  return content;
+}
+
+function renderMetadata(wrap, metadata) {
+  if (!metadata || metadata.length === 0) return;
+
+  const metaContainer = document.createElement('div');
+  metaContainer.className = 'sources-container';
+  metaContainer.style.display = 'none'; // hidden initially
+
+  // Extract unique source filenames
+  const uniqueSources = [...new Set(metadata.map(m => m.source.split(/[\/\\]/).pop()))];
+
+  uniqueSources.forEach(sourceName => {
+    const tag = document.createElement('span');
+    tag.className = 'source-tag';
+    tag.innerHTML = `📄 ${sourceName}`;
+    metaContainer.appendChild(tag);
+  });
+
+  const toggleBtn = document.createElement('button');
+  toggleBtn.className = 'btn-ghost source-toggle-btn';
+  toggleBtn.textContent = 'View Sources';
+  toggleBtn.style.marginTop = '8px';
+  toggleBtn.onclick = () => {
+    if (metaContainer.style.display === 'none') {
+      metaContainer.style.display = 'flex';
+      toggleBtn.textContent = 'Hide Sources';
+    } else {
+      metaContainer.style.display = 'none';
+      toggleBtn.textContent = 'View Sources';
+    }
+  };
+
+  wrap.appendChild(toggleBtn);
+  wrap.appendChild(metaContainer);
 }
 
 function scrollToBottom() {
@@ -247,18 +454,26 @@ function scrollToBottom() {
   history.scrollTop = history.scrollHeight;
 }
 
-async function clearChat() {
+async function deleteSession(sessionId, event) {
+  event.stopPropagation();
   try {
-    await fetch(`/history/${sessionId}`, { method: 'DELETE' });
-    const historyEl = document.getElementById('chat-history');
-    historyEl.innerHTML = `
-      <div class="chat-message ai-message">
-        <div class="message-content">
-          <p>Chat history cleared. How can I help you today?</p>
-        </div>
-      </div>
-    `;
+    await fetch(`/history?session_id=${sessionId}`, { 
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+    if (activeSessionId === sessionId) {
+      startNewChat();
+    }
+    loadSessions();
   } catch (err) {
-    console.error("Failed to clear chat:", err);
+    console.error("Failed to delete chat:", err);
+  }
+}
+
+function clearChat() {
+  if (activeSessionId) {
+    deleteSession(activeSessionId, { stopPropagation: ()=>{} });
+  } else {
+    startNewChat();
   }
 }

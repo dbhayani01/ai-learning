@@ -105,8 +105,8 @@ RULES:
 2. BIFURCATE and strictly base your final answer ONLY on the single chunk that accurately addresses the question. Ignore conflicting or irrelevant chunks.
 3. If the answer is not in the chunks, say: "I could not find that information in the uploaded documents."
 4. Do NOT mix information from unrelated chunks or unrelated people/topics.
-5. Explicitly state which chunk (e.g., "Chunk 1") and source filename you used at the end of your answer.
-6. CHAIN OF THOUGHT: You MUST start your response with <thinking>...</thinking> tags where you explicitly reason about which chunk contains the answer and why. Then write your final answer after the tags."""
+5. CHAIN OF THOUGHT: You MUST start your response with <thinking>...</thinking> tags where you explicitly reason about which chunk contains the answer and why. Then write your final answer after the tags.
+6. Do NOT mention the chunk number or the source filename in your final answer. The system handles that automatically."""
 
 _BIOGRAPHICAL_INSTRUCTION = """\
 ANSWER FORMAT — BIOGRAPHICAL:
@@ -133,11 +133,14 @@ CONTENT:
 
 
 def _format_context(docs: list[Document]) -> str:
+    import os
     parts = []
     for i, doc in enumerate(docs, 1):
+        source_path = doc.metadata.get("source", "unknown")
+        safe_source = os.path.basename(source_path) if source_path != "unknown" else "unknown"
         parts.append(_CONTEXT_TEMPLATE.format(
             idx     = i,
-            source  = doc.metadata.get("source", "unknown"),
+            source  = safe_source,
             page    = doc.metadata.get("page", "N/A"),
             content = doc.page_content.strip(),
         ))
@@ -146,7 +149,8 @@ def _format_context(docs: list[Document]) -> str:
 
 from langchain_core.messages import SystemMessage, HumanMessage
 
-def _build_messages(question: str, context: str, session_id: str = None) -> list:
+def _build_messages(question: str, context: str, session_id: str) -> list:
+    """Construct the system prompt and conversation history."""
     q_type = _detect_question_type(question)
 
     if q_type == "biographical":
@@ -188,11 +192,15 @@ QUESTION: {question}"""
 
 import json
 
-def answer_question_stream(question: str, session_id: str):
+def answer_question_stream(question: str, user_id: int, session_id: str):
     """
     Run the full RAG pipeline and yield SSE-formatted strings.
     """
-    db = get_vector_store()
+    try:
+        db = get_vector_store(user_id)
+    except FileNotFoundError:
+        yield f"data: {json.dumps({'type': 'error', 'content': 'No document found. Please upload a PDF first.'})}\n\n"
+        return
 
     # MMR: fetch_k candidates → re-rank to top k for diversity
     raw_docs = db.max_marginal_relevance_search(
@@ -218,13 +226,18 @@ def answer_question_stream(question: str, session_id: str):
         {
             "source":   doc.metadata.get("source", "unknown"),
             "page":     doc.metadata.get("page", "N/A"),
+            "chunk_id": doc.metadata.get("chunk_id", -1),
             "strategy": doc.metadata.get("chunk_strategy", "recursive"),
             "preview":  doc.page_content[:400],
         }
         for doc in docs
     ]
+    
+    # Extract metadata for history
+    rag_meta = [{"source": c["source"], "chunk_id": c["chunk_id"]} for c in chunks_list[:3]]
 
-    # Send metadata first
+    # Send session ID and metadata first
+    yield f"data: {json.dumps({'type': 'session_id', 'session_id': session_id})}\n\n"
     yield f"data: {json.dumps({'type': 'metadata', 'question_type': q_type, 'chunks': chunks_list})}\n\n"
 
     # Stream LLM tokens (filter out the thinking block)
@@ -251,4 +264,4 @@ def answer_question_stream(question: str, session_id: str):
     if final_ai_answer:
         from app.services.history import add_message
         add_message(session_id, "user", question)
-        add_message(session_id, "ai", final_ai_answer)
+        add_message(session_id, "ai", final_ai_answer, rag_meta)

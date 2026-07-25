@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse
 from app.config import STATIC_DIR
 from app.routes.upload import router as upload_router
 from app.routes.query  import router as query_router
+from app.routes.auth   import router as auth_router
 from app.services.worker import process_documents
 
 # ── Logging ────────────────────────────────────────────────────────────────────
@@ -49,6 +50,7 @@ app = FastAPI(
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Routers
+app.include_router(auth_router)
 app.include_router(upload_router)
 app.include_router(query_router)
 

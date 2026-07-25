@@ -37,8 +37,8 @@ def process_documents() -> None:
     logger.info("Document processing worker started.")
 
     while True:
-        job_id, file_path = document_queue.get()
-        logger.info("Processing job %s: %s", job_id, file_path)
+        job_id, file_path, user_id = document_queue.get()
+        logger.info("Processing job %s for user %s: %s", job_id, user_id, file_path)
 
         update_job(job_id, {"status": "processing"})
 
@@ -55,7 +55,7 @@ def process_documents() -> None:
 
             # Embed & upsert (with dedup)
             from vectordb.faiss_store import create_or_update_vector_store
-            stats = create_or_update_vector_store(chunks)
+            stats = create_or_update_vector_store(chunks, user_id)
 
             update_job(job_id, {
                 "status":  "completed",
