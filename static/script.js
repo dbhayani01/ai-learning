@@ -68,6 +68,7 @@ async function submitAuth() {
     
     startNewChat();
     loadSessions();
+    loadDocuments();
     
   } catch (err) {
     errEl.textContent = "Network error. Server may be down.";
@@ -146,6 +147,7 @@ async function verifyCurrentToken() {
       document.getElementById('btn-floating-toggle').style.display = 'none';
       startNewChat();
       loadSessions();
+      loadDocuments();
     } else {
       // Token invalid, clear it and try guest mode again
       setAuthToken(null);
@@ -178,6 +180,57 @@ async function loadSessions() {
     });
   } catch (e) {
     console.error("Failed to load sessions", e);
+  }
+}
+
+async function loadDocuments() {
+  if (!authToken) return;
+  try {
+    const res = await fetch(`/documents`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+    if (!res.ok) return;
+    const data = await res.json();
+    
+    // Update limits display
+    const limitsEl = document.getElementById('doc-limits-display');
+    if (limitsEl) limitsEl.textContent = `${data.usage} / ${data.limit}`;
+    
+    const list = document.getElementById('document-list');
+    if (!list) return;
+    list.innerHTML = '';
+    
+    data.documents.forEach(filename => {
+      const el = document.createElement('div');
+      el.className = 'session-item';
+      // Truncate name for UI
+      const shortName = filename.length > 22 ? filename.substring(0, 22) + "..." : filename;
+      el.innerHTML = `
+        <span title="${filename}">📄 ${shortName}</span>
+        <button class="session-delete" onclick="deleteDocument('${filename}', event)">🗑</button>
+      `;
+      list.appendChild(el);
+    });
+  } catch (e) {
+    console.error("Failed to load documents", e);
+  }
+}
+
+async function deleteDocument(filename, event) {
+  if (event) event.stopPropagation();
+  if (!confirm(`Are you sure you want to delete ${filename}? This will remove it from the AI's knowledge.`)) return;
+  
+  if (!authToken) return;
+  try {
+    const res = await fetch(`/documents/${filename}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+    if (res.ok) {
+      loadDocuments();
+    } else {
+      alert("Failed to delete document.");
+    }
+  } catch (e) {
+    console.error(e);
   }
 }
 
@@ -254,11 +307,7 @@ async function uploadFile() {
     const data = await res.json();
 
     if (!res.ok) {
-      alert(data.detail);
-      if (res.status === 403 && data.detail.includes("LIMIT_REACHED")) {
-        document.getElementById('auth-overlay').classList.remove('hidden');
-      }
-      showToast(file.name, 'Upload failed');
+      updateToastError(data.detail || 'Upload failed');
       return;
     }
 
@@ -328,6 +377,7 @@ function updateToastSuccess(status) {
   document.getElementById('progress-fill').style.width = '100%';
   document.getElementById('progress-fill').style.background = 'var(--green)';
   document.getElementById('toast-spinner').classList.add('hidden');
+  loadDocuments(); // Refresh limits and doc list
   setTimeout(() => {
     document.getElementById('upload-toast').classList.add('hidden');
   }, 4000);
@@ -385,7 +435,6 @@ async function askQuestion() {
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
       if (res.status === 403 && errData.detail && errData.detail.includes("LIMIT_REACHED")) {
-        document.getElementById('auth-overlay').classList.remove('hidden');
         msgContainer.textContent = "You've reached the free limits! Please sign up to continue.";
       } else {
         if (typeof errData.detail === 'object') {
@@ -490,13 +539,37 @@ function renderMetadata(wrap, metadata) {
   metaContainer.className = 'sources-container';
   metaContainer.style.display = 'none'; // hidden initially
 
-  // Extract unique source filenames
-  const uniqueSources = [...new Set(metadata.map(m => m.source.split(/[\/\\]/).pop()))];
+  // Extract unique source filenames and check if deleted
+  const uniqueSourcesMap = {};
+  metadata.forEach(m => {
+    const sName = m.source.split(/[\/\\]/).pop();
+    if (!uniqueSourcesMap[sName]) uniqueSourcesMap[sName] = { deleted: m.is_deleted };
+    else if (m.is_deleted) uniqueSourcesMap[sName].deleted = true;
+  });
 
-  uniqueSources.forEach(sourceName => {
+  const escapeHtml = (unsafe) => {
+    return String(unsafe)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  };
+
+  Object.keys(uniqueSourcesMap).forEach(sourceName => {
+    const isDeleted = uniqueSourcesMap[sourceName].deleted;
+    const safeSource = escapeHtml(sourceName);
     const tag = document.createElement('span');
     tag.className = 'source-tag';
-    tag.innerHTML = `📄 ${sourceName}`;
+    
+    if (isDeleted) {
+      tag.innerHTML = `📄 <s style="opacity: 0.6;">${safeSource}</s> <span style="color: var(--red); font-weight: 500; font-size: 0.7rem; margin-left: 4px;">(Deleted)</span>`;
+      tag.title = "Source document was deleted";
+      tag.style.border = "1px solid rgba(239, 68, 68, 0.2)";
+    } else {
+      tag.innerHTML = `📄 ${safeSource}`;
+    }
+    
     metaContainer.appendChild(tag);
   });
 

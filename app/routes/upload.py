@@ -78,3 +78,44 @@ async def upload_pdf(file: UploadFile = File(...), user: dict = Depends(get_curr
         "size_mb":  round(size_mb, 2),
         "status":   "queued",
     }
+
+
+@router.get("/documents", summary="List uploaded documents and limits")
+def list_documents(user: dict = Depends(get_current_user)):
+    user_docs_dir = os.path.join(DOCUMENTS_DIR, str(user["id"]))
+    
+    existing_files = []
+    if os.path.exists(user_docs_dir):
+        existing_files = [f for f in os.listdir(user_docs_dir) if f.endswith(".pdf")]
+        
+    max_files = 3 if user.get("role") == "guest" else 10
+    
+    return {
+        "documents": existing_files,
+        "usage": len(existing_files),
+        "limit": max_files
+    }
+
+
+from vectordb.faiss_store import delete_document_from_index
+
+@router.delete("/documents/{filename}", summary="Delete a document and its FAISS index")
+def delete_document(filename: str, user: dict = Depends(get_current_user)):
+    user_docs_dir = os.path.join(DOCUMENTS_DIR, str(user["id"]))
+    safe_name = os.path.basename(filename)
+    file_path = os.path.join(user_docs_dir, safe_name)
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Document not found.")
+        
+    # Delete the physical file
+    os.remove(file_path)
+    
+    # Delete from FAISS
+    try:
+        delete_document_from_index(safe_name, user["id"])
+    except Exception as e:
+        logger.error(f"Error deleting document from FAISS: {e}")
+        # We continue even if FAISS deletion fails, since the file is already gone
+    
+    return {"message": f"Deleted {safe_name}"}

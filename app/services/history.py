@@ -228,19 +228,20 @@ def add_message(session_id: str, role: str, content: str, metadata: list = None)
     conn.commit()
     conn.close()
 
-def get_history(session_id: str, limit: int = 50) -> List[Dict[str, Any]]:
-    """Retrieve the last N messages for a chat session."""
+def get_history(session_id: str, user_id: Any, limit: int = 50) -> List[Dict[str, Any]]:
+    """Retrieve the last N messages for a chat session, verifying ownership."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
     cursor.execute('''
-        SELECT role, content, metadata, timestamp 
-        FROM messages 
-        WHERE session_id = ? 
-        ORDER BY id DESC 
+        SELECT m.role, m.content, m.metadata, m.timestamp 
+        FROM messages m
+        JOIN chat_sessions s ON m.session_id = s.id
+        WHERE m.session_id = ? AND s.user_id = ?
+        ORDER BY m.id DESC 
         LIMIT ?
-    ''', (session_id, limit))
+    ''', (session_id, user_id, limit))
     
     rows = cursor.fetchall()
     conn.close()
@@ -254,13 +255,22 @@ def get_history(session_id: str, limit: int = 50) -> List[Dict[str, Any]]:
         
     return results
 
-def delete_chat_session(session_id: str):
-    """Delete a chat session and all its messages."""
+def delete_chat_session(session_id: str, user_id: Any):
+    """Delete a chat session and all its messages, verifying ownership."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM chat_sessions WHERE id = ?', (session_id,))
+    cursor.execute('DELETE FROM chat_sessions WHERE id = ? AND user_id = ?', (session_id, user_id))
     conn.commit()
     conn.close()
+
+def verify_session_ownership(session_id: str, user_id: Any) -> bool:
+    """Check if a session belongs to a user."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('SELECT 1 FROM chat_sessions WHERE id = ? AND user_id = ?', (session_id, user_id))
+    row = cursor.fetchone()
+    conn.close()
+    return bool(row)
 
 # Initialize DB on import
 init_db()

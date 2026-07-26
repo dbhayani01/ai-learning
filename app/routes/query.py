@@ -50,13 +50,36 @@ def ask(req: Request, request: QuestionRequest, user: dict = Depends(get_current
                 detail="LIMIT_REACHED: You have reached the maximum 10 questions for Guest Mode."
             )
         increment_ip_usage(client_ip)
+    else:
+        import time
+        global _user_rate_limits
+        if '_user_rate_limits' not in globals():
+            _user_rate_limits = {}
+            
+        now = time.time()
+        uid = str(user["id"])
+        if uid not in _user_rate_limits:
+            _user_rate_limits[uid] = [0, now]
+            
+        count, start = _user_rate_limits[uid]
+        if now - start > 3600:
+            _user_rate_limits[uid] = [1, now]
+        else:
+            if count >= 50:
+                 raise HTTPException(
+                    status_code=429, 
+                    detail="LIMIT_REACHED: You have reached the maximum of 50 questions per hour."
+                 )
+            _user_rate_limits[uid][0] += 1
 
     try:
-        from app.services.history import create_chat_session
+        from app.services.history import create_chat_session, verify_session_ownership
         
-        # Auto-create session if None
         session_id = request.session_id
-        if not session_id:
+        if session_id:
+            if not verify_session_ownership(session_id, user["id"]):
+                raise HTTPException(status_code=403, detail="Unauthorized access to chat session.")
+        else:
             title = " ".join(request.question.split()[:4]) + "..."
             session_id = create_chat_session(user["id"], title)
 
@@ -93,12 +116,26 @@ def get_sessions(user: dict = Depends(get_current_user)):
 
 @router.get("/history", summary="Get chat history for a session")
 def get_chat_history(session_id: str, user: dict = Depends(get_current_user)):
-    """Retrieve chat history for a specific session."""
-    history = get_history(session_id)
+    """Retrieve chat history for a specific session and flag deleted sources."""
+    import os
+    from app.config import DOCUMENTS_DIR
+    
+    history = get_history(session_id, user["id"])
+    user_docs_dir = os.path.join(DOCUMENTS_DIR, str(user["id"]))
+    
+    for msg in history:
+        if msg.get("metadata"):
+            for chunk in msg["metadata"]:
+                source_name = chunk.get("source", "unknown")
+                if source_name != "unknown":
+                    file_path = os.path.join(user_docs_dir, source_name)
+                    if not os.path.exists(file_path):
+                        chunk["is_deleted"] = True
+                        
     return {"messages": history}
 
 @router.delete("/history", summary="Delete a chat session")
 def delete_chat_history(session_id: str, user: dict = Depends(get_current_user)):
     """Delete a specific chat session."""
-    delete_chat_session(session_id)
+    delete_chat_session(session_id, user["id"])
     return {"status": "cleared"}

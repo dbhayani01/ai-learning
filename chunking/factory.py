@@ -29,7 +29,6 @@ def get_chunks(
     chosen = (strategy or CHUNK_STRATEGY).lower().strip()
 
     if chosen == "semantic":
-        # Lazy import — only loads sentence-transformers when actually used
         from chunking.semantic import get_semantic_chunks
         return get_semantic_chunks(documents)
 

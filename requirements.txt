@@ -11,4 +11,3 @@ pypdf
 python-dotenv
 python-multipart
 psutil
-sentence-transformers

@@ -146,3 +146,42 @@ def get_vector_store(user_id: int) -> FAISS:
         _cached_mtimes[user_id] = current_mtime
 
     return _cached_indices[user_id]
+
+
+def delete_document_from_index(filename: str, user_id: int):
+    """
+    Remove all chunks originating from a specific filename from the FAISS index.
+    Also recalculates chunk_hashes to ensure complete cleanup.
+    """
+    user_dir = _get_user_dir(user_id)
+    index_file = os.path.join(user_dir, "index.faiss")
+    
+    if not os.path.exists(index_file):
+        return  # Nothing to delete
+        
+    with _write_lock:
+        db = FAISS.load_local(
+            user_dir,
+            _embeddings,
+            allow_dangerous_deserialization=True,
+        )
+        
+        # Find chunks belonging to this document
+        to_delete_ids = []
+        for doc_id, doc in db.docstore._dict.items():
+            if doc.metadata.get("source") == filename:
+                to_delete_ids.append(doc_id)
+                
+        if to_delete_ids:
+            # Delete from FAISS
+            db.delete(to_delete_ids)
+            db.save_local(user_dir)
+            
+            # Remove deleted hashes from cache
+            # Instead of manually trying to reverse hash the deleted docs (since we only saved MD5s),
+            # we can just recalculate the valid hashes by rehashing everything currently in the docstore.
+            valid_hashes = set()
+            for doc in db.docstore._dict.values():
+                valid_hashes.add(_content_hash(doc))
+            
+            _save_hashes(user_id, valid_hashes)

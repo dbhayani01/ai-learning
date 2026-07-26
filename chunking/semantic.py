@@ -12,7 +12,7 @@ Strategy:
   coherent passage rather than an arbitrary character slice.
 
 Requirements:
-  pip install langchain-experimental sentence-transformers
+  pip install langchain-experimental
 """
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain_community.embeddings import FastEmbedEmbeddings
