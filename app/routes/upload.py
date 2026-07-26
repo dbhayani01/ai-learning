@@ -41,10 +41,21 @@ async def upload_pdf(file: UploadFile = File(...), user: dict = Depends(get_curr
             detail=f"File too large ({size_mb:.1f} MB). Max is {MAX_FILE_SIZE_MB} MB.",
         )
 
-    # Save to disk
-    safe_name = os.path.basename(file.filename)
+    # Check limits based on role
     user_docs_dir = os.path.join(DOCUMENTS_DIR, str(user["id"]))
     os.makedirs(user_docs_dir, exist_ok=True)
+    
+    existing_files = [f for f in os.listdir(user_docs_dir) if f.endswith(".pdf")]
+    max_files = 3 if user.get("role") == "guest" else 10
+    
+    if len(existing_files) >= max_files:
+        raise HTTPException(
+            status_code=403,
+            detail="LIMIT_REACHED: You have reached the maximum number of PDF uploads."
+        )
+
+    # Save to disk
+    safe_name = os.path.basename(file.filename)
     file_path = os.path.join(user_docs_dir, safe_name)
     with open(file_path, "wb") as f:
         f.write(content)

@@ -18,22 +18,34 @@
   <div class="app-container">
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar" style="display: none;">
-      <button class="btn-new-chat" onclick="startNewChat()">+ New Chat</button>
+      <div style="display: flex; gap: 8px; margin-bottom: 24px;">
+        <button class="btn-new-chat" onclick="startNewChat()" style="flex: 1; margin-bottom: 0;">+ New Chat</button>
+        <button class="btn-ghost" onclick="toggleSidebar()" style="padding: 10px; display: flex; align-items: center; justify-content: center;" title="Close Sidebar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
       <div class="session-list" id="session-list">
         <!-- Sessions will be injected here -->
       </div>
+      <div class="sidebar-footer" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px;">
+        <span id="user-greeting" style="font-size: 0.85rem; color: var(--text-2); display: none;"></span>
+        <button id="btn-logout" class="btn-ghost" onclick="logout()" style="padding: 8px 12px; font-size: 0.85rem; border-radius: 6px; display: none; text-align: left; background: var(--surface);">Logout</button>
+      </div>
     </aside>
+
+    <!-- Floating Toggle (visible when sidebar is hidden) -->
+    <button id="btn-floating-toggle" class="btn-ghost" onclick="toggleSidebar()" style="display: none; position: fixed; top: 16px; left: 16px; z-index: 1000; padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center;" title="Open Sidebar">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+    </button>
 
     <div class="chat-layout">
       <!-- Header -->
       <header class="chat-header">
-        <div class="logo">
-          <span class="logo-icon">⚡</span>
+        <div class="logo" style="display: flex; align-items: center; gap: 12px;">
+          <img src="/static/logo.jpg" alt="RAG AI Logo" style="width: 32px; height: 32px; border-radius: 8px; object-fit: cover;" />
           <span class="logo-text">RAG<span class="logo-accent">AI</span></span>
         </div>
         <div style="display: flex; gap: 12px; align-items: center;">
-          <span id="user-greeting" style="font-size: 0.85rem; color: var(--text-2); display: none;"></span>
-          <button id="btn-logout" class="btn-ghost" onclick="logout()" style="padding: 6px 12px; font-size: 0.8rem; border-radius: 6px; display: none;">Logout</button>
           <div id="status-dot" class="status-badge">
             <span class="dot dot-green"></span> Ready
           </div>
@@ -86,6 +98,11 @@
 
       <!-- Input Area -->
       <footer class="chat-input-area">
+        <!-- Guest Banner -->
+        <div id="guest-banner" style="display: none; background: var(--surface-2); border: 1px solid var(--border); padding: 8px 16px; border-radius: var(--radius-sm); margin-bottom: 12px; font-size: 0.85rem; color: var(--text-2); text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+          <strong>Guest Mode:</strong> Limit 3 PDFs and 10 questions. <a href="#" onclick="document.getElementById('auth-overlay').classList.remove('hidden')" style="color: var(--accent); font-weight: 600; text-decoration: none;">Sign Up / Log In</a> for 10 PDFs and unlimited questions!
+        </div>
+
         <div class="input-container">
           <!-- Hidden File Input -->
           <input type="file" id="pdfFile" accept=".pdf" hidden />

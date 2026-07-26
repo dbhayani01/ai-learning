@@ -19,11 +19,13 @@ router = APIRouter(tags=["query"])
 
 
 class QuestionRequest(BaseModel):
-    question: str = Field(..., min_length=3, max_length=2000, description="Question to ask")
+    question: str = Field(..., min_length=1, max_length=2000, description="Question to ask")
     session_id: str | None = Field(None, description="Optional chat session ID")
 
+from fastapi import Request
+
 @router.post("/ask", summary="Ask a question against ingested documents")
-def ask(request: QuestionRequest, user: dict = Depends(get_current_user)):
+def ask(req: Request, request: QuestionRequest, user: dict = Depends(get_current_user)):
     """
     Run the RAG pipeline and return an answer with source attribution.
 
@@ -35,6 +37,19 @@ def ask(request: QuestionRequest, user: dict = Depends(get_current_user)):
             status_code=503,
             detail=f"Server is busy (only {free_mb:.0f} MB free). Try again shortly.",
         )
+        
+    from app.services.history import get_ip_usage, increment_ip_usage
+    
+    if user.get("role") == "guest":
+        # Note: in a proxy environment (like Nginx), use req.headers.get("X-Forwarded-For")
+        client_ip = req.client.host
+        usage = get_ip_usage(client_ip)
+        if usage >= 10:
+            raise HTTPException(
+                status_code=403,
+                detail="LIMIT_REACHED: You have reached the maximum 10 questions for Guest Mode."
+            )
+        increment_ip_usage(client_ip)
 
     try:
         from app.services.history import create_chat_session

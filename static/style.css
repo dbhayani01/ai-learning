@@ -2,24 +2,24 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:          #0a0b0f;
-  --surface:     rgba(255,255,255,0.04);
-  --surface-2:   rgba(255,255,255,0.07);
-  --border:      rgba(255,255,255,0.08);
-  --border-2:    rgba(255,255,255,0.14);
-  --text-1:      #f0f0f5;
-  --text-2:      #9a9ab0;
-  --text-3:      #5c5c7a;
-  --accent:      #7c6ffd;
-  --accent-2:    #a78bfa;
-  --accent-glow: rgba(124,111,253,0.25);
-  --green:       #22d3a4;
-  --yellow:      #fbbf24;
-  --red:         #f87171;
+  --bg:          #f9fafb;
+  --surface:     #ffffff;
+  --surface-2:   #f3f4f6;
+  --border:      #e5e7eb;
+  --border-2:    #d1d5db;
+  --text-1:      #111827;
+  --text-2:      #4b5563;
+  --text-3:      #9ca3af;
+  --accent:      #6366f1;
+  --accent-2:    #8b5cf6;
+  --accent-glow: rgba(99,102,241,0.15);
+  --green:       #10b981;
+  --yellow:      #f59e0b;
+  --red:         #ef4444;
   --radius-sm:   8px;
   --radius:      14px;
   --radius-lg:   24px;
-  --shadow:      0 4px 32px rgba(0,0,0,0.5);
+  --shadow:      0 8px 32px rgba(0,0,0,0.06);
   --font:        'Inter', system-ui, sans-serif;
   --transition:  0.2s cubic-bezier(0.4,0,0.2,1);
 }
@@ -63,7 +63,7 @@ body {
 
 .sidebar {
   width: 260px;
-  background: rgba(10, 11, 15, 0.95);
+  background: rgba(255, 255, 255, 0.95);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -112,9 +112,16 @@ body {
   justify-content: space-between;
   align-items: center;
 }
-.session-item:hover, .session-item.active {
+}
+.session-item:hover {
   background: var(--surface);
   color: var(--text-1);
+}
+.session-item.active {
+  background: var(--surface);
+  color: var(--text-1);
+  border-left: 3px solid var(--accent);
+  padding-left: 9px; /* adjust for the 3px border so it doesn't shift */
 }
 
 .session-delete {

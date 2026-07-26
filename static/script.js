@@ -53,10 +53,18 @@ async function submitAuth() {
     document.getElementById('auth-overlay').classList.add('hidden');
     
     // Update Header & Sidebar
-    document.getElementById('user-greeting').textContent = `Hi, ${data.username}`;
+    if (data.role === 'guest') {
+      document.getElementById('user-greeting').textContent = 'Hi, Guest';
+      document.getElementById('guest-banner').style.display = 'block';
+    } else {
+      document.getElementById('user-greeting').textContent = `Hi, ${data.username}`;
+      document.getElementById('guest-banner').style.display = 'none';
+    }
+    
     document.getElementById('user-greeting').style.display = 'inline';
     document.getElementById('btn-logout').style.display = 'inline';
     document.getElementById('sidebar').style.display = 'flex';
+    document.getElementById('btn-floating-toggle').style.display = 'none';
     
     startNewChat();
     loadSessions();
@@ -86,15 +94,34 @@ async function logout() {
   document.getElementById('user-greeting').style.display = 'none';
   document.getElementById('btn-logout').style.display = 'none';
   document.getElementById('sidebar').style.display = 'none';
-  document.getElementById('auth-overlay').classList.remove('hidden');
+  document.getElementById('btn-floating-toggle').style.display = 'none';
+  
+  // Transition seamlessly to a new guest session
+  checkAuthOnLoad();
 }
 
 async function checkAuthOnLoad() {
   if (!authToken) {
-    document.getElementById('auth-overlay').classList.remove('hidden');
+    // Generate guest token
+    try {
+      const res = await fetch('/guest', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        setAuthToken(data.token);
+        // Refresh with new token
+        verifyCurrentToken();
+      } else {
+        document.getElementById('auth-overlay').classList.remove('hidden');
+      }
+    } catch(e) {
+      document.getElementById('auth-overlay').classList.remove('hidden');
+    }
     return;
   }
-  
+  verifyCurrentToken();
+}
+
+async function verifyCurrentToken() {
   try {
     const res = await fetch('/me', {
       headers: { 'Authorization': `Bearer ${authToken}` }
@@ -103,15 +130,26 @@ async function checkAuthOnLoad() {
     if (res.ok) {
       const data = await res.json();
       document.getElementById('auth-overlay').classList.add('hidden');
-      document.getElementById('user-greeting').textContent = `Hi, ${data.username}`;
+      
+      if (data.role === 'guest') {
+        document.getElementById('user-greeting').textContent = 'Hi, Guest';
+        document.getElementById('guest-banner').style.display = 'block';
+        document.getElementById('btn-logout').style.display = 'none';
+      } else {
+        document.getElementById('user-greeting').textContent = `Hi, ${data.username}`;
+        document.getElementById('guest-banner').style.display = 'none';
+        document.getElementById('btn-logout').style.display = 'inline';
+      }
+      
       document.getElementById('user-greeting').style.display = 'inline';
-      document.getElementById('btn-logout').style.display = 'inline';
       document.getElementById('sidebar').style.display = 'flex';
+      document.getElementById('btn-floating-toggle').style.display = 'none';
       startNewChat();
       loadSessions();
     } else {
+      // Token invalid, clear it and try guest mode again
       setAuthToken(null);
-      document.getElementById('auth-overlay').classList.remove('hidden');
+      checkAuthOnLoad();
     }
   } catch (err) {
     console.error("Auth check failed:", err);
@@ -216,7 +254,11 @@ async function uploadFile() {
     const data = await res.json();
 
     if (!res.ok) {
-      updateToastError(data.detail || 'Upload failed.');
+      alert(data.detail);
+      if (res.status === 403 && data.detail.includes("LIMIT_REACHED")) {
+        document.getElementById('auth-overlay').classList.remove('hidden');
+      }
+      showToast(file.name, 'Upload failed');
       return;
     }
 
@@ -342,7 +384,16 @@ async function askQuestion() {
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
-      msgContainer.textContent = errData.detail || 'Request failed.';
+      if (res.status === 403 && errData.detail && errData.detail.includes("LIMIT_REACHED")) {
+        document.getElementById('auth-overlay').classList.remove('hidden');
+        msgContainer.textContent = "You've reached the free limits! Please sign up to continue.";
+      } else {
+        if (typeof errData.detail === 'object') {
+          msgContainer.textContent = JSON.stringify(errData.detail);
+        } else {
+          msgContainer.textContent = errData.detail || 'Request failed.';
+        }
+      }
       msgContainer.style.color = 'var(--red)';
       return;
     }
@@ -465,6 +516,18 @@ function renderMetadata(wrap, metadata) {
 
   wrap.appendChild(toggleBtn);
   wrap.appendChild(metaContainer);
+}
+
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const floatingToggle = document.getElementById('btn-floating-toggle');
+  if (sidebar.style.display === 'none' || sidebar.style.display === '') {
+    sidebar.style.display = 'flex';
+    floatingToggle.style.display = 'none';
+  } else {
+    sidebar.style.display = 'none';
+    floatingToggle.style.display = 'inline-block';
+  }
 }
 
 function scrollToBottom() {

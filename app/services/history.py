@@ -65,6 +65,40 @@ def init_db():
     
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_id ON chat_sessions(user_id)')
+    
+    # Guest IP Usage
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS ip_usage (
+            ip_address TEXT PRIMARY KEY,
+            question_count INTEGER DEFAULT 0,
+            last_used DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+# ── IP Usage Helpers ────────────────────────────────────────────────────────
+
+def get_ip_usage(ip_address: str) -> int:
+    """Get the number of questions asked by a guest IP."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('SELECT question_count FROM ip_usage WHERE ip_address = ?', (ip_address,))
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] if row else 0
+
+def increment_ip_usage(ip_address: str):
+    """Increment the question count for a guest IP."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO ip_usage (ip_address, question_count, last_used)
+        VALUES (?, 1, CURRENT_TIMESTAMP)
+        ON CONFLICT(ip_address) DO UPDATE SET 
+            question_count = question_count + 1,
+            last_used = CURRENT_TIMESTAMP
+    ''', (ip_address,))
     conn.commit()
     conn.close()
 
@@ -230,3 +264,15 @@ def delete_chat_session(session_id: str):
 
 # Initialize DB on import
 init_db()
+
+def migrate_chat_sessions(guest_id: str, new_user_id: int):
+    """Migrate all chat sessions from a guest ID to a new permanent user ID."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE chat_sessions 
+        SET user_id = ? 
+        WHERE user_id = ?
+    ''', (new_user_id, guest_id))
+    conn.commit()
+    conn.close()
