@@ -115,6 +115,7 @@ their professional role/background, key expertise, and notable achievements.
 After the paragraph, optionally add a SHORT bullet list of their top 3-5 skills or highlights.
 Do NOT dump a raw list of 20+ items. Synthesize. Be human-readable."""
 
+
 _LIST_INSTRUCTION = """\
 ANSWER FORMAT — LIST:
 Provide a clean, organized list. Group related items under sub-headings if helpful.
@@ -149,7 +150,8 @@ def _format_context(docs: list[Document]) -> str:
 
 from langchain_core.messages import SystemMessage, HumanMessage
 
-def _build_messages(question: str, context: str, session_id: str) -> list:
+#def _build_messages(question: str, context: str, session_id: str) -> list:  
+def _build_messages(question: str,context: str,session_id: str,user_id: int) -> list:
     """Construct the system prompt and conversation history."""
     q_type = _detect_question_type(question)
 
@@ -169,7 +171,7 @@ def _build_messages(question: str, context: str, session_id: str) -> list:
     # Inject chat history if available
     from app.services.history import get_history
     if session_id:
-        history_records = get_history(session_id)
+        history_records = get_history(session_id, user_id)
         for record in history_records:
             if record["role"] == "user":
                 msgs.append(HumanMessage(content=record["content"]))
@@ -220,7 +222,13 @@ def answer_question_stream(question: str, user_id: int, session_id: str):
     # Only format the top 3 chunks for the LLM context, but send all chunks to the UI
     context      = _format_context(docs[:3])
     q_type       = _detect_question_type(question)
-    messages     = _build_messages(question, context, session_id)
+    #  messages     = _build_messages(question, context, session_id)
+    messages = _build_messages(
+     question,
+     context,
+     session_id,
+     user_id
+    )
 
     chunks_list = [
         {
