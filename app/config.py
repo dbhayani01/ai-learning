@@ -16,6 +16,8 @@ STATIC_DIR      = str(BASE_DIR / "static")
 # ── LLM ────────────────────────────────────────────────────────────────────────
 GROQ_API_KEY    = os.getenv("GROQ_API_KEY", "")
 LLM_MODEL       = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
+TELEGRAM_BOT_TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN", "")
+VISION_BOT_TOKEN= os.getenv("VISION_BOT_TOKEN", "")
 
 # ── Chunking ───────────────────────────────────────────────────────────────────
 CHUNK_STRATEGY  = os.getenv("CHUNK_STRATEGY", "recursive")   # recursive | semantic

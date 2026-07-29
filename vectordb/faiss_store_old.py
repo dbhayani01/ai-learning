@@ -119,17 +119,14 @@ def create_vector_store(chunks: list[Document], user_id: int) -> dict:
     return create_or_update_vector_store(chunks, user_id)
 
 
-_cached_index = None
-_cached_user = None
-_cached_mtime = None
+_cached_indices = {}
+_cached_mtimes = {}
 
 def get_vector_store(user_id: int) -> FAISS:
     """
     Load the FAISS index from disk (read-only).
     Raises FileNotFoundError if no index has been built yet.
     """
-    global _cached_index, _cached_user, _cached_mtime
-    
     user_dir = os.path.join(FAISS_INDEX_DIR, str(user_id))
     index_file = os.path.join(user_dir, "index.faiss")
     
@@ -140,16 +137,15 @@ def get_vector_store(user_id: int) -> FAISS:
 
     current_mtime = os.path.getmtime(index_file)
     
-    if _cached_user != user_id or current_mtime > (_cached_mtime or 0.0) or _cached_index is None:
-        _cached_index = FAISS.load_local(
+    if user_id not in _cached_indices or current_mtime > _cached_mtimes.get(user_id, 0.0):
+        _cached_indices[user_id] = FAISS.load_local(
             user_dir,
             _embeddings,
             allow_dangerous_deserialization=True,
         )
-        _cached_user = user_id
-        _cached_mtime = current_mtime
+        _cached_mtimes[user_id] = current_mtime
 
-    return _cached_index
+    return _cached_indices[user_id]
 
 
 def delete_document_from_index(filename: str, user_id: int):

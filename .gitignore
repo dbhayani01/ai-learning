@@ -10,6 +10,12 @@ venv.bak/
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
+*.pyo
+
+# pickle files
+*.pkl
+*.pickle
 
 # Databases
 *.db
