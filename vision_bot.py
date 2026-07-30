@@ -175,10 +175,13 @@ async def process_vision_question(update: Update, context: ContextTypes.DEFAULT_
                 await asyncio.sleep(0)
 
         if not answer_buffer:
-            clean_buffer = re.sub(r'<thinking>.*', '', buffer, flags=re.DOTALL).strip()
-            answer_buffer = clean_buffer if clean_buffer else "Sorry, I couldn't generate a response."
+            cleaned = re.sub(r'<thinking>.*?</thinking>', '', buffer, flags=re.DOTALL).strip()
+            answer_buffer = cleaned if cleaned else "Sorry, I couldn't generate a response."
 
-        await thinking_message.edit_text(answer_buffer)
+        if answer_buffer:
+            await thinking_message.edit_text(answer_buffer)
+        else:
+            await thinking_message.edit_text("Sorry, I couldn't generate a response.")
     except Exception as e:
         logger.error(f"Vision API error: {e}")
         await thinking_message.edit_text("Sorry, an error occurred while analyzing the image.")

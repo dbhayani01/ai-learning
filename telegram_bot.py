@@ -52,10 +52,10 @@ def register_user(context: ContextTypes.DEFAULT_TYPE, username: str) -> Optional
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Ask for the username instead of requesting a phone number."""
+    """Set up the conversation and tell the user that the first message will be used as registration."""
     context.user_data['awaiting_username'] = True
     await update.message.reply_text(
-        "Welcome to the RAG Assistant!\nPlease send your username to continue."
+        "Welcome to the RAG Assistant!\nYour first message will be used to register your Telegram username."
     )
 
 
@@ -101,15 +101,16 @@ async def document_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle text messages for username registration and querying."""
     if context.user_data.get('awaiting_username'):
-        username = update.message.text.strip() if update.message.text else ""
+        username = update.effective_user.username or ""
         if not username:
-            return
+            username = update.message.text.strip() if update.message.text else ""
 
         user_id = register_user(context, username)
         if user_id:
             await update.message.reply_text(
-                "Successfully registered! You can now send me PDF documents (limit 10) and ask questions about them."
+                f"Username: {username} registered. You can now send me PDF documents (limit 10) and ask questions about them."
             )
+            context.user_data['awaiting_username'] = False
         else:
             await update.message.reply_text("Could not register that username. Please try again.")
         return
