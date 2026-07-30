@@ -150,6 +150,7 @@ async def process_vision_question(update: Update, context: ContextTypes.DEFAULT_
         buffer = ""
         answer_buffer = ""
         post_thinking = False
+        final_text = ""
 
         for chunk in stream:
             content = None
@@ -166,22 +167,28 @@ async def process_vision_question(update: Update, context: ContextTypes.DEFAULT_
                     post_thinking = True
                     remainder = buffer.split("</thinking>", 1)[1].lstrip()
                     if remainder:
-                        answer_buffer = remainder
-                        await thinking_message.edit_text(answer_buffer)
-                        await asyncio.sleep(0)
+                        final_text = remainder
+                        # keep the first visible update small and avoid huge payloads
+                        preview = final_text[:1000]
+                        if len(preview) < 4096:
+                            await thinking_message.edit_text(preview)
+                            await asyncio.sleep(0)
             else:
                 answer_buffer += content
-                await thinking_message.edit_text(answer_buffer)
+                final_text = answer_buffer
+                if len(final_text) > 4000:
+                    final_text = final_text[:4000] + "..."
+                await thinking_message.edit_text(final_text)
                 await asyncio.sleep(0)
 
-        if not answer_buffer:
+        if not final_text:
             cleaned = re.sub(r'<thinking>.*?</thinking>', '', buffer, flags=re.DOTALL).strip()
-            answer_buffer = cleaned if cleaned else "Sorry, I couldn't generate a response."
+            final_text = cleaned if cleaned else "Sorry, I couldn't generate a response."
 
-        if answer_buffer:
-            await thinking_message.edit_text(answer_buffer)
-        else:
-            await thinking_message.edit_text("Sorry, I couldn't generate a response.")
+        if len(final_text) > 4000:
+            final_text = final_text[:4000] + "..."
+
+        await thinking_message.edit_text(final_text)
     except Exception as e:
         logger.error(f"Vision API error: {e}")
         await thinking_message.edit_text("Sorry, an error occurred while analyzing the image.")
